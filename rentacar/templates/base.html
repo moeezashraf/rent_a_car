@@ -1,0 +1,101 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>{% block title %}RentACar{% endblock %}</title>
+  {% load static %}
+  <link rel="stylesheet" href="{% static 'css/style.css' %}"/>
+</head>
+<body>
+
+  <!-- ── Navbar ───────────────────────────── -->
+  <nav class="navbar">
+    <div class="nav-container">
+      <a href="/" class="nav-brand">🚗 RentACar</a>
+
+      <div class="nav-links" id="navLinks">
+        <a href="/">Home</a>
+        <a href="/cars/">Discover Cars</a>
+
+        <!-- Shown only when logged out -->
+        <span id="guestLinks">
+          <a href="/login/" class="btn btn-outline">Login</a>
+          <a href="/register/" class="btn btn-outline">Register</a>
+        </span>
+
+        <!-- Shown only when logged in -->
+        <div id="authLinks" class="auth-links" style="display:none">
+          <span id="customerNav" style="display:none">
+            <a href="/dashboard/customer/">My Bookings</a>
+          </span>
+          <span id="ownerNav" style="display:none">
+            <a href="/dashboard/owner/">My Cars</a>
+          </span>
+          <span id="adminNav" style="display:none">
+            <a href="/dashboard/admin/">Admin Panel</a>
+          </span>
+          <span id="navUsername" class="nav-user"></span>
+          <button onclick="logout()" class="btn btn-outline">Logout</button>
+        </div>
+      </div>
+    </div>
+  </nav>
+
+  <!-- ── Flash messages ───────────────────── -->
+  <div id="flash" class="flash" style="display:none"></div>
+
+  <!-- ── Page content ─────────────────────── -->
+  <main class="main-content">
+    {% block content %}{% endblock %}
+  </main>
+
+  <!-- ── Footer ───────────────────────────── -->
+  <footer class="footer">
+    <p>© 2025 RentACar. All rights reserved.</p>
+  </footer>
+
+  <script src="{% static 'js/api.js' %}"></script>
+  {% block scripts %}{% endblock %}
+
+  <script>
+    // Run on every page — checks login state and updates navbar
+    (function() {
+      const token = localStorage.getItem('token');
+      const role  = localStorage.getItem('role');
+      const username = localStorage.getItem('username');
+
+      if (token) {
+        document.getElementById('guestLinks').style.display = 'none';
+        document.getElementById('authLinks').style.display  = 'inline-flex';
+        document.getElementById('navUsername').textContent  = '👤 ' + username;
+
+        if (role === 'customer')
+          document.getElementById('customerNav').style.display = 'inline';
+        if (role === 'owner')
+          document.getElementById('ownerNav').style.display = 'inline';
+        if (role === 'admin')
+          document.getElementById('adminNav').style.display = 'inline';
+      }
+    })();
+
+    function logout() {
+      API.post('/api/accounts/logout/', {})
+        .then(() => {
+          localStorage.clear();
+          showFlash('Logged out successfully.', 'success');
+          setTimeout(() => window.location.href = '/', 800);
+        });
+    }
+
+    function showFlash(msg, type='success') {
+      const el = document.getElementById('flash');
+      el.textContent = msg;
+      el.className   = 'flash flash-' + type;
+      el.style.display = 'block';
+      setTimeout(() => el.style.display = 'none', 3500);
+    }
+  </script>
+
+</body>
+</html>

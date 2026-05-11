@@ -1,0 +1,146 @@
+<!-- templates/dashboards/admin_dashboard.html -->
+{% extends 'base.html' %}
+{% block title %}Admin Panel{% endblock %}
+
+{% block content %}
+<h1 style="margin-bottom:1.5rem">Admin Panel</h1>
+
+<!-- Stats -->
+<div class="stats-row">
+  <div class="stat-card">
+    <div class="stat-number" id="statCars">—</div>
+    <div class="stat-label">Total Cars</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-number" id="statBookings">—</div>
+    <div class="stat-label">Total Bookings</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-number" id="statPending">—</div>
+    <div class="stat-label">Pending Approvals</div>
+  </div>
+</div>
+
+<!-- Pending Cars -->
+<div class="card" style="margin-bottom:1.5rem">
+  <h2 style="margin-bottom:1rem">Cars Awaiting Approval</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>#</th><th>Car</th><th>Owner</th><th>Price/day</th><th>Location</th><th>Action</th></tr>
+      </thead>
+      <tbody id="pendingCars">
+        <tr><td colspan="6"><span class="spinner"></span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- All Bookings -->
+<div class="card">
+  <h2 style="margin-bottom:1rem">All Bookings</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>#</th><th>Customer</th><th>Car</th><th>Dates</th><th>Cost</th><th>Status</th><th>Action</th></tr>
+      </thead>
+      <tbody id="allBookings">
+        <tr><td colspan="7"><span class="spinner"></span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  if (!API.isLoggedIn()) window.location.href = '/login/';
+  if (API.getRole() !== 'admin') window.location.href = '/';
+
+  const STATUS_BADGE = {
+    pending:'badge-amber', approved:'badge-green',
+    rejected:'badge-red', cancelled:'badge-gray', completed:'badge-blue',
+  };
+
+  async function loadAdmin() {
+    try {
+      const [cars, bookings] = await Promise.all([
+        API.get('/api/cars/admin/all/'),
+        API.get('/api/bookings/admin/all/'),
+      ]);
+
+      const pending = cars.filter(c => !c.is_approved);
+      document.getElementById('statCars').textContent     = cars.length;
+      document.getElementById('statBookings').textContent = bookings.length;
+      document.getElementById('statPending').textContent  = pending.length;
+
+      // Pending cars table
+      document.getElementById('pendingCars').innerHTML = pending.length
+        ? pending.map(c => `
+          <tr>
+            <td>#${c.id}</td>
+            <td>${c.brand} ${c.model} (${c.year})</td>
+            <td>${c.owner.username}</td>
+            <td>$${c.price_per_day}</td>
+            <td>${c.location}</td>
+            <td>
+              <button class="btn btn-success" style="font-size:.8rem;padding:.3rem .6rem;margin-right:.25rem"
+                onclick="approveCar(${c.id}, true)">Approve</button>
+              <button class="btn btn-danger"  style="font-size:.8rem;padding:.3rem .6rem"
+                onclick="approveCar(${c.id}, false)">Reject</button>
+            </td>
+          </tr>`).join('')
+        : '<tr><td colspan="6" style="text-align:center;color:var(--text-muted)">No pending cars</td></tr>';
+
+      // All bookings table
+      document.getElementById('allBookings').innerHTML = bookings.length
+        ? bookings.map(b => `
+          <tr>
+            <td>#${b.id}</td>
+            <td>${b.customer.username}</td>
+            <td>${b.car.brand} ${b.car.model}</td>
+            <td>${b.start_date} → ${b.end_date}</td>
+            <td>$${b.total_cost}</td>
+            <td><span class="badge ${STATUS_BADGE[b.status]}">${b.status}</span></td>
+            <td>
+              <select onchange="adminUpdateBooking(${b.id}, this.value)" style="font-size:.8rem;padding:.25rem .5rem;border-radius:6px;border:1px solid var(--border)">
+                <option value="">Change status</option>
+                <option value="approved">Approve</option>
+                <option value="rejected">Reject</option>
+                <option value="cancelled">Cancel</option>
+                <option value="completed">Complete</option>
+              </select>
+            </td>
+          </tr>`).join('')
+        : '<tr><td colspan="7" style="text-align:center;color:var(--text-muted)">No bookings found</td></tr>';
+
+    } catch (err) {
+      showFlash(err.message, 'error');
+    }
+  }
+
+  async function approveCar(id, approve) {
+    try {
+      await API.patch(`/api/cars/admin/${id}/approve/`, { is_approved: approve });
+      showFlash(`Car ${approve ? 'approved' : 'rejected'}.`, 'success');
+      loadAdmin();
+    } catch (err) {
+      showFlash(err.message, 'error');
+    }
+  }
+
+  async function adminUpdateBooking(id, newStatus) {
+    if (!newStatus) return;
+    try {
+      await API.patch(`/api/bookings/admin/${id}/action/`, { status: newStatus });
+      showFlash(`Booking updated to "${newStatus}".`, 'success');
+      loadAdmin();
+    } catch (err) {
+      showFlash(err.message, 'error');
+    }
+  }
+
+  loadAdmin();
+</script>
+{% endblock %}

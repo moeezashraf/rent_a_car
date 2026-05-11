@@ -1,0 +1,160 @@
+from django.shortcuts import render
+from rest_framework import status, generics, permissions, filters
+from rest_framework.response import Response
+from rest_framework.views import APIView
+from rest_framework.parsers import MultiPartParser, FormParser
+from django.shortcuts import get_object_or_404
+from django_filters.rest_framework import DjangoFilterBackend
+from .models import *
+from .serializers import *
+from accounts.permissions import IsOwner, IsPlatformAdmin
+
+# Create your views here.
+
+# Customer sides
+class CarListView(generics.ListAPIView):
+    serializer_class   = CarListSerializer
+    permission_classes = [permissions.AllowAny]
+    filter_backends    = [filters.SearchFilter, filters.OrderingFilter, DjangoFilterBackend]
+    search_fields  = ['brand', 'model', 'location']
+    ordering_fields = ['price_per_day', 'year', 'created_at']
+    ordering        = ['-created_at']
+    filterset_fields = ['car_type', 'is_available', 'brand']
+
+    def get_queryset(self):
+        queryset = Car.objects.filter(is_approved=True, is_available=True).prefetch_related('images').select_related('owner')
+        min_price = self.request.query_params.get('min_price')
+        max_price = self.request.query_params.get('max_price')
+
+        if min_price:
+            queryset = queryset.filter(price_per_day__gte=min_price)
+        if max_price:
+            queryset = queryset.filter(price_per_day__lte=max_price)
+        return queryset
+    
+
+class CarDetailView(generics.RetrieveAPIView):
+    serializer_class   = CarDetailSerializer
+    permission_classes = [permissions.AllowAny]
+
+    def get_queryset(self):
+        return Car.objects.filter(is_approved=True).prefetch_related('images').select_related('owner')
+    
+
+# Owner sides
+class CarCreateView(generics.CreateAPIView):
+    serializer_class   = CarCreateUpdateSerializer
+    permission_classes = [permissions.IsAuthenticated, IsOwner]
+
+    def get_serializer_context(self):
+        return {'request': self.request}
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        if serializer.is_valid():
+            car = serializer.save()
+            return Response({
+                "message" : "Car listed successfully. Awaiting admin approval.",
+                "car"     : CarDetailSerializer(car, context={'request': request}).data,
+            }, status=status.HTTP_201_CREATED)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+
+class MyCarListView(generics.ListAPIView):
+    serializer_class   = CarDetailSerializer
+    permission_classes = [permissions.IsAuthenticated, IsOwner]
+
+    def get_queryset(self):
+        return Car.objects.filter(owner=self.request.user).prefetch_related('images')
+
+
+class CarUpdateDeleteView(generics.RetrieveUpdateDestroyAPIView):
+    serializer_class   = CarCreateUpdateSerializer
+    permission_classes = [permissions.IsAuthenticated, IsOwner]
+
+    def get_queryset(self):
+        return Car.objects.filter(owner=self.request.user)
+
+    def get_serializer_context(self):
+        return {'request': self.request}
+
+    def update(self, request, *args, **kwargs):
+        response = super().update(request, *args, **kwargs)
+        car = self.get_object()
+        car.is_approved = False
+        car.save()
+        response.data['message'] = "Car updated. Re-submitted for admin approval."
+        return response
+
+    def destroy(self, request, *args, **kwargs):
+        car = self.get_object()
+        car.delete()
+        return Response(
+            {"message": "Car listing deleted successfully."},
+            status=status.HTTP_200_OK
+        )
+    
+
+class CarImageUploadView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsOwner]
+    parser_classes     = [MultiPartParser, FormParser]
+
+    def post(self, request, pk):
+        car = get_object_or_404(Car, pk=pk, owner=request.user)
+        images = request.FILES.getlist('images')
+
+        if not images:
+            return Response(
+                {"error": "No images provided."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+
+        uploaded = []
+        for index, image_file in enumerate(images):
+            is_primary = (index == 0) and not car.images.exists()
+            img = CarImage.objects.create(car=car, image=image_file, is_primary=is_primary)
+            uploaded.append(CarImageUploadSerializer(img).data)
+        return Response({
+            "message": f"{len(uploaded)} image(s) uploaded successfully.",
+            "images" : uploaded,
+        }, status=status.HTTP_201_CREATED)
+
+
+class CarImageDeleteView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsOwner]
+
+    def delete(self, request, pk):
+        image = get_object_or_404(CarImage, pk=pk, car__owner=request.user)
+        image.delete()
+        return Response(
+            {"message": "Image deleted successfully."},
+            status=status.HTTP_200_OK
+        )
+
+
+# Admin sides
+class AdminCarListView(generics.ListAPIView):
+    serializer_class   = CarDetailSerializer
+    permission_classes = [permissions.IsAuthenticated, IsPlatformAdmin]
+    queryset           = Car.objects.all().prefetch_related('images').select_related('owner')
+
+
+class AdminCarApprovalView(APIView):
+    permission_classes = [permissions.IsAuthenticated, IsPlatformAdmin]
+
+    def patch(self, request, pk):
+        car        = get_object_or_404(Car, pk=pk)
+        is_approved = request.data.get('is_approved')
+        if is_approved is None:
+            return Response(
+                {"error": "Please provide 'is_approved': true or false."},
+                status=status.HTTP_400_BAD_REQUEST
+            )
+        car.is_approved = is_approved
+        car.save()
+        action = "approved" if is_approved else "rejected"
+        return Response({
+            "message": f"Car has been {action}.",
+            "car_id" : car.id,
+            "is_approved": car.is_approved,
+        }, status=status.HTTP_200_OK)

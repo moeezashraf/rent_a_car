@@ -1,0 +1,302 @@
+<!-- templates/dashboards/owner_dashboard.html -->
+{% extends 'base.html' %}
+{% block title %}Owner Dashboard{% endblock %}
+
+{% block content %}
+
+<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem">
+  <h1>Owner Dashboard</h1>
+  <button type="button" class="btn btn-primary" onclick="showAddCarForm()">+ Add New Car</button>
+</div>
+
+<!-- Stats -->
+<div class="stats-row">
+  <div class="stat-card">
+    <div class="stat-number" id="totalCars">—</div>
+    <div class="stat-label">My Cars</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-number" id="pendingRequests">—</div>
+    <div class="stat-label">Pending Requests</div>
+  </div>
+  <div class="stat-card">
+    <div class="stat-number" id="totalEarnings">—</div>
+    <div class="stat-label">Total Earnings</div>
+  </div>
+</div>
+
+<!-- Add Car Form (hidden by default) -->
+<div id="addCarForm" class="card" style="display:none;margin-bottom:1.5rem">
+  <h2 style="margin-bottom:1rem">List a New Car</h2>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:1rem">
+    <div class="form-group">
+      <label>Brand</label>
+      <input type="text" id="cBrand" placeholder="e.g. Toyota"/>
+    </div>
+    <div class="form-group">
+      <label>Model</label>
+      <input type="text" id="cModel" placeholder="e.g. Corolla"/>
+    </div>
+    <div class="form-group">
+      <label>Year</label>
+      <input type="number" id="cYear" placeholder="e.g. 2021" min="1990" max="2026"/>
+    </div>
+    <div class="form-group">
+      <label>Type</label>
+      <select id="cType">
+        <option value="sedan">Sedan</option>
+        <option value="suv">SUV</option>
+        <option value="luxury">Luxury</option>
+        <option value="hatchback">Hatchback</option>
+        <option value="truck">Truck</option>
+        <option value="van">Van</option>
+      </select>
+    </div>
+    <div class="form-group">
+      <label>Price per day ($)</label>
+      <input type="number" id="cPrice" placeholder="e.g. 45.00" step="0.01"/>
+    </div>
+    <div class="form-group">
+      <label>Location</label>
+      <input type="text" id="cLocation" placeholder="e.g. Lahore"/>
+    </div>
+  </div>
+  <div class="form-group">
+    <label>Description</label>
+    <textarea id="cDescription" rows="3" placeholder="Describe your car..."></textarea>
+  </div>
+  <div class="form-group">
+    <label>Upload Images</label>
+    <input type="file" id="cImages" accept="image/*" multiple />
+    <small style="color:var(--text-muted);font-size:.85rem">You can upload one or more images of the car.</small>
+  </div>
+  <div id="carFormError" class="form-error" style="margin-bottom:.5rem"></div>
+  <div style="display:flex;gap:.75rem">
+    <button type="button" class="btn btn-primary" onclick="addCar()">Submit for Approval</button>
+    <button type="button" class="btn btn-gray"    onclick="hideAddCarForm()">Cancel</button>
+  </div>
+</div>
+
+<!-- My Cars -->
+<div class="card" style="margin-bottom:1.5rem">
+  <h2 style="margin-bottom:1rem">My Cars</h2>
+  <div id="myCarsGrid" class="car-grid">
+    <p><span class="spinner"></span> Loading...</p>
+  </div>
+</div>
+
+<!-- Booking Requests -->
+<div class="card">
+  <h2 style="margin-bottom:1rem">Booking Requests</h2>
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr><th>#</th><th>Customer</th><th>Car</th><th>Dates</th><th>Cost</th><th>Status</th><th>Action</th></tr>
+      </thead>
+      <tbody id="bookingRequests">
+        <tr><td colspan="7"><span class="spinner"></span></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+  if (!API.isLoggedIn()) window.location.href = '/login/';
+  if (API.getRole() !== 'owner') window.location.href = '/';
+
+  const STATUS_BADGE = {
+    pending:   'badge-amber',
+    approved:  'badge-green',
+    rejected:  'badge-red',
+    cancelled: 'badge-gray',
+    completed: 'badge-blue',
+  };
+
+  async function loadDashboard() {
+    try {
+      // Load profile for earnings
+      const profile = await API.get('/api/accounts/profile/owner/');
+      document.getElementById('totalEarnings').textContent =
+        '$' + parseFloat(profile.total_earnings).toFixed(2);
+
+      // Load cars
+      const cars = await API.get('/api/cars/my-cars/');
+      document.getElementById('totalCars').textContent = cars.length;
+      renderMyCars(cars);
+
+      // Load bookings
+      const bookings = await API.get('/api/bookings/owner/');
+      const pending = bookings.filter(b => b.status === 'pending');
+      document.getElementById('pendingRequests').textContent = pending.length;
+      renderBookingRequests(bookings);
+
+    } catch (err) {
+      showFlash(err.message, 'error');
+    }
+  }
+
+  function renderMyCars(cars) {
+    if (!cars.length) {
+      document.getElementById('myCarsGrid').innerHTML =
+        `<div class="empty-state"><h3>No cars listed yet</h3><p>Click "Add New Car" to get started.</p></div>`;
+      return;
+    }
+
+    document.getElementById('myCarsGrid').innerHTML = cars.map(car => {
+      const img = car.images.find(i => i.is_primary) || car.images[0];
+      return `
+        <div class="car-card">
+          <img src="${img ? img.image : '/static/images/no-image.svg'}"
+               alt="${car.brand}" style="height:160px;object-fit:cover;width:100%"
+               onerror="this.onerror=null; this.src='/static/images/no-image.svg'"/>
+          <div class="car-card-body">
+            <h3>${car.brand} ${car.model} (${car.year})</h3>
+            <div class="car-meta">
+              <span class="badge ${car.is_approved ? 'badge-green' : 'badge-amber'}">
+                ${car.is_approved ? 'Approved' : 'Pending Approval'}
+              </span>
+              <span class="badge ${car.is_available ? 'badge-blue' : 'badge-gray'}">
+                ${car.is_available ? 'Available' : 'Unavailable'}
+              </span>
+            </div>
+            <div class="car-price">$${car.price_per_day}/day</div>
+            <div style="display:flex;gap:.5rem;margin-top:.5rem">
+              <button class="btn btn-outline" style="flex:1;font-size:.8rem"
+                onclick="toggleAvailability(${car.id}, ${car.is_available})">
+                ${car.is_available ? 'Mark Unavailable' : 'Mark Available'}
+              </button>
+              <button class="btn btn-danger" style="font-size:.8rem;padding:.4rem .75rem"
+                onclick="deleteCar(${car.id})">Delete</button>
+            </div>
+          </div>
+        </div>`;
+    }).join('');
+  }
+
+  function renderBookingRequests(bookings) {
+    if (!bookings.length) {
+      document.getElementById('bookingRequests').innerHTML =
+        `<tr><td colspan="7" class="empty-state"><h3>No booking requests yet</h3></td></tr>`;
+      return;
+    }
+
+    document.getElementById('bookingRequests').innerHTML = bookings.map(b => `
+      <tr>
+        <td>#${b.id}</td>
+        <td>${b.customer.username}</td>
+        <td>${b.car.brand} ${b.car.model}</td>
+        <td>${b.start_date} → ${b.end_date}</td>
+        <td>$${b.total_cost}</td>
+        <td><span class="badge ${STATUS_BADGE[b.status]}">${b.status}</span></td>
+        <td>
+          ${b.status === 'pending' ? `
+            <button class="btn btn-success" style="font-size:.8rem;padding:.3rem .6rem;margin-right:.25rem"
+              onclick="updateBooking(${b.id}, 'approved')">Approve</button>
+            <button class="btn btn-danger"  style="font-size:.8rem;padding:.3rem .6rem"
+              onclick="updateBooking(${b.id}, 'rejected')">Reject</button>
+          ` : ''}
+          ${b.status === 'approved' ? `
+            <button class="btn btn-primary" style="font-size:.8rem;padding:.3rem .6rem"
+              onclick="completeBooking(${b.id})">Mark Complete</button>
+          ` : ''}
+          ${!['pending','approved'].includes(b.status) ? '—' : ''}
+        </td>
+      </tr>
+    `).join('');
+  }
+
+  async function addCar() {
+    const payload = {
+      brand:         document.getElementById('cBrand').value.trim(),
+      model:         document.getElementById('cModel').value.trim(),
+      year:          parseInt(document.getElementById('cYear').value),
+      car_type:      document.getElementById('cType').value,
+      price_per_day: parseFloat(document.getElementById('cPrice').value),
+      location:      document.getElementById('cLocation').value.trim(),
+      description:   document.getElementById('cDescription').value.trim(),
+    };
+
+    const imagesInput = document.getElementById('cImages');
+    const errEl = document.getElementById('carFormError');
+
+    if (!payload.brand || !payload.model || !payload.year || !payload.price_per_day || !payload.location) {
+      errEl.textContent = 'Please fill all required fields.';
+      return;
+    }
+
+    errEl.textContent = '';
+
+    try {
+      const carResponse = await API.post('/api/cars/create/', payload);
+      const carId = carResponse.car.id;
+
+      if (imagesInput && imagesInput.files.length) {
+        const formData = new FormData();
+        for (const file of imagesInput.files) {
+          formData.append('images', file);
+        }
+        await API.upload(`/api/cars/${carId}/images/`, formData);
+      }
+
+      showFlash('Car submitted for admin approval!', 'success');
+      hideAddCarForm();
+      loadDashboard();
+    } catch (err) {
+      errEl.textContent = err.message;
+    }
+  }
+
+  async function toggleAvailability(carId, current) {
+    try {
+      await API.patch(`/api/cars/${carId}/manage/`, { is_available: !current });
+      showFlash('Car availability updated.', 'success');
+      loadDashboard();
+    } catch (err) {
+      showFlash(err.message, 'error');
+    }
+  }
+
+  async function deleteCar(carId) {
+    if (!confirm('Delete this car listing? This cannot be undone.')) return;
+    try {
+      await API.delete(`/api/cars/${carId}/manage/`);
+      showFlash('Car deleted.', 'success');
+      loadDashboard();
+    } catch (err) {
+      showFlash(err.message, 'error');
+    }
+  }
+
+  async function updateBooking(id, newStatus) {
+    try {
+      await API.patch(`/api/bookings/${id}/manage/`, { status: newStatus });
+      showFlash(`Booking ${newStatus}.`, 'success');
+      loadDashboard();
+    } catch (err) {
+      showFlash(err.message, 'error');
+    }
+  }
+
+  async function completeBooking(id) {
+    try {
+      await API.patch(`/api/bookings/${id}/complete/`, {});
+      showFlash('Booking marked as completed. Earnings updated!', 'success');
+      loadDashboard();
+    } catch (err) {
+      showFlash(err.message, 'error');
+    }
+  }
+
+  function showAddCarForm()  {
+    const form = document.getElementById('addCarForm');
+    form.style.display = 'block';
+    form.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  }
+  function hideAddCarForm()  { document.getElementById('addCarForm').style.display = 'none'; }
+
+  loadDashboard();
+</script>
+{% endblock %}
