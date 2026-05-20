@@ -16,9 +16,10 @@ class BookingCreateView(APIView):
         serializer = BookingCreateSerializer(data=request.data, context={'request': request})
         if serializer.is_valid():
             booking = serializer.save()
+            booking = Booking.objects.select_related('car__owner', 'customer').prefetch_related('car__images').get(pk=booking.pk)
             return Response({
                 "message": "Booking request submitted successfully.",
-                "booking": BookingDetailSerializer(booking).data,
+                "booking": BookingDetailSerializer(booking, context={'request': request}).data,
             }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -28,21 +29,26 @@ class MyBookingsView(generics.ListAPIView):
     permission_classes = [permissions.IsAuthenticated, IsCustomer]
 
     def get_queryset(self):
-        return Booking.objects.filter(customer=self.request.user).select_related('car', 'customer')
+        return Booking.objects.filter(
+            customer=self.request.user
+        ).select_related('car__owner', 'customer').prefetch_related('car__images')
 
 
 class BookingDetailView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
     def get(self, request, pk):
-        booking = get_object_or_404(Booking, pk=pk)
+        booking = get_object_or_404(
+            Booking.objects.select_related('car__owner', 'customer').prefetch_related('car__images'),
+            pk=pk
+        )
         is_customer  = booking.customer == request.user
         is_car_owner = booking.car.owner == request.user
 
         if not (is_customer or is_car_owner or request.user.is_platform_admin):
             return Response({"error": "You do not have permission to view this booking."}, status=status.HTTP_403_FORBIDDEN)
 
-        serializer = BookingDetailSerializer(booking)
+        serializer = BookingDetailSerializer(booking, context={'request': request})
         return Response(serializer.data)
 
 
@@ -69,14 +75,19 @@ class OwnerBookingsView(generics.ListAPIView):
     permission_classes = [permissions.IsAuthenticated, IsOwner]
 
     def get_queryset(self):
-        return Booking.objects.filter(car__owner=self.request.user).select_related('car', 'customer')
+        return Booking.objects.filter(
+            car__owner=self.request.user
+        ).select_related('car__owner', 'customer').prefetch_related('car__images')
 
 
 class BookingStatusUpdateView(APIView):
     permission_classes = [permissions.IsAuthenticated, IsOwner]
 
     def patch(self, request, pk):
-        booking = get_object_or_404(Booking, pk=pk, car__owner=request.user)
+        booking = get_object_or_404(
+            Booking.objects.select_related('car__owner', 'customer').prefetch_related('car__images'),
+            pk=pk, car__owner=request.user
+        )
 
         if booking.status != 'pending':
             return Response(
@@ -90,7 +101,7 @@ class BookingStatusUpdateView(APIView):
             serializer.save()
             return Response({
                 "message" : f"Booking has been {booking.status}.",
-                "booking" : BookingDetailSerializer(booking).data,
+                "booking" : BookingDetailSerializer(booking, context={'request': request}).data,
             }, status=status.HTTP_200_OK)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
@@ -99,7 +110,10 @@ class CompleteBookingView(APIView):
     permission_classes = [permissions.IsAuthenticated, IsOwner]
 
     def patch(self, request, pk):
-        booking = get_object_or_404(Booking, pk=pk, car__owner=request.user)
+        booking = get_object_or_404(
+            Booking.objects.select_related('car__owner', 'customer').prefetch_related('car__images'),
+            pk=pk, car__owner=request.user
+        )
 
         if booking.status != 'approved':
             return Response(
@@ -137,7 +151,7 @@ class ReviewCreateView(APIView):
 class AdminBookingListView(generics.ListAPIView):
     serializer_class   = BookingDetailSerializer
     permission_classes = [permissions.IsAuthenticated, IsPlatformAdmin]
-    queryset           = Booking.objects.all().select_related('car', 'customer')
+    queryset           = Booking.objects.all().select_related('car__owner', 'customer').prefetch_related('car__images')
 
 
 class AdminBookingActionView(APIView):

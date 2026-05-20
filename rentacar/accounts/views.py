@@ -1,5 +1,6 @@
 from django.shortcuts import render
 from rest_framework import generics, status, permissions
+from rest_framework.authentication import TokenAuthentication, SessionAuthentication
 from rest_framework.response import Response
 from rest_framework.views import APIView
 from rest_framework.authtoken.models import Token
@@ -10,6 +11,7 @@ from .serializers import *
 # Create your views here.
 
 class RegisterView(APIView):
+    authentication_classes = []
     permission_classes = [permissions.AllowAny]
 
     def post(self, request):
@@ -29,6 +31,7 @@ class RegisterView(APIView):
 
 
 class LoginView(APIView):
+    authentication_classes = []
     permission_classes = [permissions.AllowAny]
 
     def post(self, request):
@@ -49,10 +52,12 @@ class LoginView(APIView):
 
 
 class LogoutView(APIView):
+    authentication_classes = [TokenAuthentication, SessionAuthentication]
     permission_classes = [permissions.IsAuthenticated]
 
     def post(self, request):
-        request.user.auth_token.delete()
+        if hasattr(request.user, 'auth_token'):
+            request.user.auth_token.delete()
         logout(request)
         return Response({'message': 'User logged out successfully.'}, status=status.HTTP_200_OK)
     

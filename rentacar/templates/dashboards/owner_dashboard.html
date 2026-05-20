@@ -4,9 +4,14 @@
 
 {% block content %}
 
-<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem">
-  <h1>Owner Dashboard</h1>
-  <button type="button" class="btn btn-primary" onclick="showAddCarForm()">+ Add New Car</button>
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Owner Dashboard</h1>
+    <p class="page-subtitle">Manage your fleet, watch booking requests, and grow your earnings.</p>
+  </div>
+  <div class="page-actions">
+    <button type="button" class="btn btn-primary" onclick="showAddCarForm()">+ Add New Car</button>
+  </div>
 </div>
 
 <!-- Stats -->
@@ -53,7 +58,7 @@
       </select>
     </div>
     <div class="form-group">
-      <label>Price per day ($)</label>
+      <label>Price per day (PKR)</label>
       <input type="number" id="cPrice" placeholder="e.g. 45.00" step="0.01"/>
     </div>
     <div class="form-group">
@@ -120,7 +125,7 @@
       // Load profile for earnings
       const profile = await API.get('/api/accounts/profile/owner/');
       document.getElementById('totalEarnings').textContent =
-        '$' + parseFloat(profile.total_earnings).toFixed(2);
+        'PKR ' + parseFloat(profile.total_earnings).toFixed(2);
 
       // Load cars
       const cars = await API.get('/api/cars/my-cars/');
@@ -162,7 +167,7 @@
                 ${car.is_available ? 'Available' : 'Unavailable'}
               </span>
             </div>
-            <div class="car-price">$${car.price_per_day}/day</div>
+            <div class="car-price">PKR ${car.price_per_day}/day</div>
             <div style="display:flex;gap:.5rem;margin-top:.5rem">
               <button class="btn btn-outline" style="flex:1;font-size:.8rem"
                 onclick="toggleAvailability(${car.id}, ${car.is_available})">

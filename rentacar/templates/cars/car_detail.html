@@ -27,29 +27,29 @@
     const mainImg = images.find(i => i.is_primary) || images[0];
 
     document.getElementById('carDetail').innerHTML = `
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:2rem;align-items:start">
+      <div class="detail-grid">
 
         <!-- Left: Images -->
         <div>
           <img
-            src="${mainImg ? mainImg.image : '/static/images/610943687-400x300.jpeg'}"
+            class="featured-image"
+            src="${mainImg ? mainImg.image : '/static/images/no-image.svg'}"
             alt="${car.brand} ${car.model}"
-            style="width:100%;border-radius:10px;max-height:380px;object-fit:cover"
             onerror="this.onerror=null; this.src='/static/images/no-image.svg'"
           />
-          <div style="display:flex;gap:.5rem;margin-top:.75rem;flex-wrap:wrap">
+          <div class="image-gallery">
             ${images.map(img => `
               <img
                 src="${img.image}"
                 onclick="setMain(this.src)"
-                style="width:80px;height:60px;object-fit:cover;border-radius:6px;cursor:pointer;border:2px solid var(--border)"
+                alt="Car image"
               />
             `).join('')}
           </div>
         </div>
 
         <!-- Right: Info -->
-        <div class="card">
+        <div class="card car-detail-panel">
           <h1 style="font-size:1.6rem;margin-bottom:.5rem">${car.brand} ${car.model}</h1>
           <div class="car-meta" style="margin-bottom:1rem">
             <span class="badge badge-blue">${car.car_type.toUpperCase()}</span>
@@ -63,7 +63,7 @@
           <p style="margin-bottom:1rem">${car.description || 'No description provided.'}</p>
 
           <div class="car-price" style="font-size:1.6rem;margin-bottom:1.25rem">
-            $${car.price_per_day}<span style="font-size:1rem;font-weight:400;color:var(--text-muted)">/day</span>
+            PKR ${car.price_per_day}<span style="font-size:1rem;font-weight:400;color:var(--text-muted)">/day</span>
           </div>
 
           <p style="font-size:.9rem;color:var(--text-muted);margin-bottom:.25rem">
@@ -71,9 +71,9 @@
           </p>
 
           <!-- Booking form — shown only to logged-in customers -->
-          <div id="bookingSection" style="margin-top:1.5rem;display:none">
-            <hr style="margin-bottom:1.25rem"/>
-            <h3 style="margin-bottom:1rem">Book this car</h3>
+          <div id="bookingSection" class="booking-panel" style="display:none">
+            <hr />
+            <h3>Book this car</h3>
             <div class="form-group">
               <label>Start Date</label>
               <input type="date" id="startDate"/>
@@ -123,7 +123,7 @@
           if (s && e && e > s) {
             const days = (new Date(e) - new Date(s)) / 86400000;
             const cost = (days * car.price_per_day).toFixed(2);
-            document.getElementById('costAmount').textContent = `$${cost} (${days} day${days>1?'s':''})`;
+            document.getElementById('costAmount').textContent = `PKR ${cost} (${days} day${days>1?'s':''})`;
             document.getElementById('costPreview').style.display = 'block';
           }
         });

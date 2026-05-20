@@ -69,6 +69,12 @@ const API = {
   async _handle(res) {
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
+      if (res.status === 401) {
+        const detail = data.detail || '';
+        if (detail.toLowerCase().includes('invalid token') || detail.toLowerCase().includes('authentication credentials')) {
+          this.clearSession();
+        }
+      }
       // Collect all error messages from DRF
       const messages = [];
       for (const key in data) {

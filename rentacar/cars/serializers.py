@@ -1,3 +1,4 @@
+from django.conf import settings
 from rest_framework import serializers
 from .models import *
 from accounts.serializers import UserSerializer
@@ -18,10 +19,19 @@ class CarListSerializer(serializers.ModelSerializer):
         fields = ['id', 'brand', 'model', 'year', 'car_type', 'price_per_day', 'location', 'is_available', 'primary_image', 'owner_name']
 
     def get_primary_image(self, obj):
-        image = obj.images.filter(is_primary=True).first()
-        if not image:
-            image = obj.images.first()
-        if image or image.image:
+        image_path = getattr(obj, 'primary_image', None)
+        if image_path:
+            full_path = settings.MEDIA_URL + image_path.lstrip('/')
+            request = self.context.get('request')
+            if request:
+                return request.build_absolute_uri(full_path)
+            return full_path
+
+        images = list(obj.images.all())
+        image = next((img for img in images if img.is_primary), None)
+        if not image and images:
+            image = images[0]
+        if image and image.image:
             request = self.context.get('request')
             if request:
                 return request.build_absolute_uri(image.image.url)

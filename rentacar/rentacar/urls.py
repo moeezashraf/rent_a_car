@@ -18,6 +18,7 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.conf.urls.static import static
+from django.views.generic import RedirectView
 from .import page_views
 
 urlpatterns = [
@@ -35,6 +36,8 @@ urlpatterns = [
     path('dashboard/customer/', page_views.customer_dashboard, name='customer-dashboard'),
     path('dashboard/owner/', page_views.owner_dashboard, name='owner-dashboard'),
     path('dashboard/admin/', page_views.admin_dashboard, name='admin-dashboard'),
+    # Browser requests to /favicon.ico are redirected to the static favicon asset.
+    path('favicon.ico', RedirectView.as_view(url=settings.STATIC_URL + 'favicon.svg', permanent=False)),
 ]
 if settings.DEBUG:
     urlpatterns += static(settings.MEDIA_URL, document_root=settings.MEDIA_ROOT)

@@ -1,6 +1,6 @@
 from rest_framework import serializers
-from .models import *
 from django.contrib.auth import authenticate
+from .models import User, CustomerProfile, OwnerProfile
 
 
 class RegistrationSerializer(serializers.ModelSerializer):
@@ -25,9 +25,9 @@ class RegistrationSerializer(serializers.ModelSerializer):
             password=validated_data['password'],
             role=validated_data['role']
         )
-        if user.role == 'customer':
+        if user.role == User.Role.CUSTOMER:
             CustomerProfile.objects.create(user=user)
-        elif user.role == 'owner':
+        elif user.role == User.Role.OWNER:
             OwnerProfile.objects.create(user=user)
 
         return user

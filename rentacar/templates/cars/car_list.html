@@ -4,15 +4,25 @@
 
 {% block content %}
 
-<section class="hero" style="padding:1.75rem 1rem 1rem 1rem;">
-  <h1>Discover Cars</h1>
-  <p>Search available cars near you and book the perfect ride.</p>
+<section class="page-header">
+  <div>
+    <h1 class="page-title">Discover Cars</h1>
+    <p class="page-subtitle">Search available cars near you and book the perfect ride.</p>
+  </div>
 </section>
 
 <section>
-  <h2 style="margin-bottom:1.25rem;">Available Cars</h2>
+  <div class="page-header" style="margin-bottom:1rem">
+    <div>
+      <h2 class="page-title" style="font-size:1.25rem;">Available Cars</h2>
+    </div>
+    <div class="page-actions">
+      <button class="btn btn-outline" onclick="resetFilters()">Reset filters</button>
+    </div>
+  </div>
 
   <div class="filters-bar">
+    <input type="search" id="searchQuery" placeholder="Search brand, model or location" oninput="loadCars()" />
     <select id="filterType" onchange="loadCars()">
       <option value="">All Types</option>
       <option value="sedan">Sedan</option>
@@ -37,6 +47,7 @@
 {% block scripts %}
 <script>
   async function loadCars(search = '') {
+    search = search || document.getElementById('searchQuery')?.value?.trim() || '';
     const type     = document.getElementById('filterType').value;
     const minPrice = document.getElementById('minPrice').value;
     const maxPrice = document.getElementById('maxPrice').value;
@@ -80,7 +91,7 @@
               </span>
             </div>
             <p style="font-size:.85rem;color:var(--text-muted)">📍 ${car.location || 'Location not set'}</p>
-            <div class="car-price">$${car.price_per_day}<span style="font-size:.85rem;font-weight:400;color:var(--text-muted)">/day</span></div>
+            <div class="car-price">PKR ${car.price_per_day}<span style="font-size:.85rem;font-weight:400;color:var(--text-muted)">/day</span></div>
             <button class="btn btn-primary" style="width:100%;margin-top:.5rem">View Details</button>
           </div>
         </div>

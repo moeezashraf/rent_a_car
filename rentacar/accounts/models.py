@@ -6,27 +6,27 @@ from django.utils import timezone
 # Create your models here.
 
 class User(AbstractUser):
-    ROLE_CHOICES = (
-        ('customer', 'Customer'),
-        ('owner', 'Owner'),
-        ('admin', 'Admin'),
-    )
-    role = models.CharField(max_length=20, choices=ROLE_CHOICES)
+    class Role(models.TextChoices):
+        CUSTOMER = 'customer', 'Customer'
+        OWNER = 'owner', 'Owner'
+        ADMIN = 'admin', 'Admin'
+
+    role = models.CharField(max_length=20, choices=Role.choices)
 
     def __str__(self):
-        return f"{self.username} ({self.role})"
+        return f"{self.username} ({self.get_role_display()})"
     
     @property
     def is_customer(self):
-        return self.role == 'customer'
+        return self.role == self.Role.CUSTOMER
     
     @property
     def is_owner(self):
-        return self.role == 'owner'
+        return self.role == self.Role.OWNER
 
     @property
     def is_admin(self):
-        return self.role == 'admin'
+        return self.role == self.Role.ADMIN
     
     @property
     def is_platform_admin(self):

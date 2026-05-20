@@ -4,9 +4,14 @@
 
 {% block content %}
 
-<div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:1.5rem">
-  <h1>My Dashboard</h1>
-  <a href="/cars/" class="btn btn-primary">Browse Cars</a>
+<div class="page-header">
+  <div>
+    <h1 class="page-title">My Dashboard</h1>
+    <p class="page-subtitle">Track your bookings, manage active trips, and view past rentals from one place.</p>
+  </div>
+  <div class="page-actions">
+    <a href="/cars/" class="btn btn-primary">Browse Cars</a>
+  </div>
 </div>
 
 <!-- Stats -->
@@ -89,7 +94,7 @@
             <small style="color:var(--text-muted)">📍 ${b.car.location}</small>
           </td>
           <td>${b.start_date} → ${b.end_date}</td>
-          <td><strong>$${b.total_cost}</strong></td>
+          <td><strong>PKR ${b.total_cost}</strong></td>
           <td><span class="badge ${STATUS_BADGE[b.status] || 'badge-gray'}">${b.status}</span></td>
           <td>
             ${b.status === 'pending' || b.status === 'approved'

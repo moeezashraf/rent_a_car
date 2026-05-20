@@ -1,4 +1,5 @@
 from django.shortcuts import render
+from django.db.models import OuterRef, Subquery
 from rest_framework import status, generics, permissions, filters
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -22,7 +23,18 @@ class CarListView(generics.ListAPIView):
     filterset_fields = ['car_type', 'is_available', 'brand']
 
     def get_queryset(self):
-        queryset = Car.objects.filter(is_approved=True, is_available=True).prefetch_related('images').select_related('owner')
+        primary_image_subquery = CarImage.objects.filter(
+            car=OuterRef('pk')
+        ).order_by('-is_primary', 'id').values('image')[:1]
+
+        queryset = Car.objects.filter(
+            is_approved=True,
+            is_available=True,
+        ).select_related('owner').only(
+            'id', 'brand', 'model', 'year', 'car_type', 'price_per_day', 'location', 'is_available',
+            'owner__username'
+        ).annotate(primary_image=Subquery(primary_image_subquery))
+
         min_price = self.request.query_params.get('min_price')
         max_price = self.request.query_params.get('max_price')
 
@@ -54,7 +66,7 @@ class CarCreateView(generics.CreateAPIView):
         if serializer.is_valid():
             car = serializer.save()
             return Response({
-                "message" : "Car listed successfully. Awaiting admin approval.",
+                "message" : "Car listed successfully!",
                 "car"     : CarDetailSerializer(car, context={'request': request}).data,
             }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -65,7 +77,7 @@ class MyCarListView(generics.ListAPIView):
     permission_classes = [permissions.IsAuthenticated, IsOwner]
 
     def get_queryset(self):
-        return Car.objects.filter(owner=self.request.user).prefetch_related('images')
+        return Car.objects.filter(owner=self.request.user).select_related('owner').prefetch_related('images')
 
 
 class CarUpdateDeleteView(generics.RetrieveUpdateDestroyAPIView):
@@ -80,10 +92,7 @@ class CarUpdateDeleteView(generics.RetrieveUpdateDestroyAPIView):
 
     def update(self, request, *args, **kwargs):
         response = super().update(request, *args, **kwargs)
-        car = self.get_object()
-        car.is_approved = False
-        car.save()
-        response.data['message'] = "Car updated. Re-submitted for admin approval."
+        response.data['message'] = "Car updated successfully."
         return response
 
     def destroy(self, request, *args, **kwargs):
